@@ -1,6 +1,7 @@
 import { serve } from "bun";
 import satori from "satori";
 import { Resvg } from "@resvg/resvg-js";
+import sharp from "sharp";
 
 // 1. Load Fonts
 const fontRegular = await fetch("https://cdn.jsdelivr.net/npm/@fontsource/roboto@5.0.8/files/roboto-latin-400-normal.woff").then(res => res.arrayBuffer());
@@ -15,8 +16,13 @@ async function urlToDataUri(url: string) {
     if (!response.ok) throw new Error("Image fetch failed");
     const arrayBuffer = await response.arrayBuffer();
     const buffer = Buffer.from(arrayBuffer);
-    const contentType = response.headers.get("content-type") || "image/jpeg";
-    return `data:${contentType};base64,${buffer.toString("base64")}`;
+    
+    // Convert to JPG using sharp
+    const jpegBuffer = await sharp(buffer)
+      .jpeg()
+      .toBuffer();
+
+    return `data:image/jpeg;base64,${jpegBuffer.toString("base64")}`;
   } catch (e) {
     console.error(`Failed to load image: ${url}`);
     return "data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7";
