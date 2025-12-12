@@ -4,7 +4,9 @@ import { Resvg } from "@resvg/resvg-js";
 
 // 1. Load Fonts
 const fontRegular = await fetch("https://cdn.jsdelivr.net/npm/@fontsource/roboto@5.0.8/files/roboto-latin-400-normal.woff").then(res => res.arrayBuffer());
+const fontRegularExt = await fetch("https://cdn.jsdelivr.net/npm/@fontsource/roboto@5.0.8/files/roboto-latin-ext-400-normal.woff").then(res => res.arrayBuffer());
 const fontBold = await fetch("https://cdn.jsdelivr.net/npm/@fontsource/roboto@5.0.8/files/roboto-latin-700-normal.woff").then(res => res.arrayBuffer());
+const fontBoldExt = await fetch("https://cdn.jsdelivr.net/npm/@fontsource/roboto@5.0.8/files/roboto-latin-ext-700-normal.woff").then(res => res.arrayBuffer());
 
 // Helper: Convert Image URL to Base64
 async function urlToDataUri(url: string) {
@@ -29,7 +31,20 @@ serve({
     // --- 2. GET VARIABLES ---
     const brandName = "LUNATIK"; 
     const productName = url.searchParams.get("name") || "Haljina Judson";
-    const imageUrl = url.searchParams.get("img"); 
+    console.log("Product Name:", productName);
+    
+    // Image Logic: Decode base64 image URL if present
+    const rawImgParam = url.searchParams.get("img");
+    let imageUrl = rawImgParam;
+    if (rawImgParam) {
+      try {
+        imageUrl = Buffer.from(rawImgParam, 'base64').toString('utf-8');
+      } catch (e) {
+        console.error("Failed to decode base64 image URL:", e);
+        // Fallback to raw param if decoding fails (might be a normal URL)
+        imageUrl = rawImgParam;
+      }
+    }
     
     // Price Logic
     const priceParam = url.searchParams.get("price"); 
@@ -50,7 +65,8 @@ serve({
         width: '100%',
         height: '100%',
         backgroundColor: 'white',
-        flexDirection: 'row', 
+        flexDirection: 'row',
+        fontFamily: 'Roboto, Roboto-Ext', // Add fallback font family
       }}>
         
         {/* LEFT COLUMN: PRODUCT IMAGE */}
@@ -176,7 +192,9 @@ serve({
       height: 1340,
       fonts: [
         { name: 'Roboto', data: fontRegular, weight: 400, style: 'normal' },
+        { name: 'Roboto-Ext', data: fontRegularExt, weight: 400, style: 'normal' },
         { name: 'Roboto', data: fontBold, weight: 700, style: 'normal' },
+        { name: 'Roboto-Ext', data: fontBoldExt, weight: 700, style: 'normal' },
       ],
     });
 
