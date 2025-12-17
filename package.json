@@ -13,10 +13,12 @@
     "typescript": "^5"
   },
   "dependencies": {
+    "@fontsource-variable/zalando-sans": "^5.2.1",
     "@resvg/resvg-js": "^2.6.2",
     "@types/react": "^19.2.7",
     "react": "^19.2.3",
     "satori": "^0.18.3",
-    "sharp": "^0.34.5"
+    "sharp": "^0.34.5",
+    "twind": "^0.16.19"
   }
 }
