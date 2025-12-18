@@ -35,6 +35,7 @@ None - all parameters are optional with sensible defaults.
 | `discount_price` | string                      | null             | Discounted price (e.g., "1.495 RSD"). When provided, enables discount display |
 | `img`            | string (base64 encoded URL) | Default image    | Product image URL. Must be base64 encoded if using a URL                      |
 | `aspect_ratio`   | string                      | "4:5"            | Image aspect ratio. Supported values: `"1:1"`, `"4:5"`, `"9:16"`              |
+| `style`          | string                      | "standard"       | Layout style. Supported values: `"standard"`, `"christmas"`                   |
 | `debug`          | boolean                     | false            | Enable debug mode to show layout borders. Set to `"true"`                     |
 
 ## Response
@@ -74,6 +75,16 @@ ENCODED_URL=$(echo -n "$IMAGE_URL" | base64)
 curl "http://localhost:3004/?img=$ENCODED_URL&name=Product%20Name&price=100%20EUR" -o product.png
 ```
 
+### With Style
+
+```bash
+# Christmas style
+curl "http://localhost:3004/?style=christmas&name=Product&price=50%20USD" -o product-christmas.png
+
+# Standard style (default)
+curl "http://localhost:3004/?style=standard&name=Product&price=50%20USD" -o product-standard.png
+```
+
 ### Different Aspect Ratio
 
 ```bash
@@ -104,6 +115,7 @@ async function generateProductImage(params) {
     price: params.price || "",
     discount_price: params.discountPrice || "",
     aspect_ratio: params.aspectRatio || "4:5",
+    style: params.style || "standard",
     debug: params.debug || "false",
   });
 
@@ -130,6 +142,7 @@ const imageBlob = await generateProductImage({
   price: "2.990 RSD",
   discountPrice: "1.495 RSD",
   aspectRatio: "4:5",
+  style: "christmas", // or "standard"
   imageUrl: "https://example.com/product.jpg",
 });
 
@@ -144,7 +157,7 @@ import requests
 import base64
 
 def generate_product_image(name=None, price=None, discount_price=None,
-                          image_url=None, aspect_ratio='4:5', debug=False):
+                          image_url=None, aspect_ratio='4:5', style='standard', debug=False):
     """
     Generate a product advertisement image.
 
@@ -153,7 +166,8 @@ def generate_product_image(name=None, price=None, discount_price=None,
         price: Regular price string
         discount_price: Discounted price string
         image_url: URL to product image
-        aspect_ratio: '4:5' or '9:16'
+        aspect_ratio: '1:1', '4:5', or '9:16'
+        style: 'standard' or 'christmas'
         debug: Enable debug mode
 
     Returns:
@@ -161,6 +175,7 @@ def generate_product_image(name=None, price=None, discount_price=None,
     """
     params = {
         'aspect_ratio': aspect_ratio,
+        'style': style,
         'debug': 'true' if debug else 'false'
     }
 
@@ -206,6 +221,7 @@ function generateProductImage(params) {
     price: params.price || "",
     discount_price: params.discountPrice || "",
     aspect_ratio: params.aspectRatio || "4:5",
+    style: params.style || "standard",
     debug: params.debug ? "true" : "false",
   });
 
@@ -237,10 +253,29 @@ generateProductImage({
   price: "2.990 RSD",
   discountPrice: "1.495 RSD",
   aspectRatio: "4:5",
+  style: "christmas", // or "standard"
 }).then((imageBuffer) => {
   fs.writeFileSync("product.png", imageBuffer);
 });
 ```
+
+## Style Options
+
+The API supports different layout styles that change the visual appearance of the generated images:
+
+### Standard Style (Default)
+
+- Clean, modern design
+- Minimal decorations
+- Professional appearance
+- Suitable for year-round use
+
+### Christmas Style
+
+- Festive holiday theme
+- Christmas decorations and ornaments
+- Seasonal color schemes
+- Perfect for holiday campaigns
 
 ## Layout Details
 
@@ -435,8 +470,10 @@ For issues or questions:
 
 ### Current Version
 
-- Support for 4:5 and 9:16 aspect ratios
+- Support for 1:1, 4:5, and 9:16 aspect ratios
+- Multiple style options (standard, christmas)
 - Automatic discount percentage calculation
 - Debug mode for layout troubleshooting
 - Automatic image format conversion to JPEG
 - Zalando Sans font with East European character support
+- Multi-threaded image processing with caching

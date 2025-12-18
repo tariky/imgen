@@ -5,11 +5,14 @@ import sharp from "sharp";
 import { createLayout45 } from "./layouts/layout45";
 import { createLayout916 } from "./layouts/layout916";
 import { createLayout11 } from "./layouts/layout11";
+import { createLayout11Christmas } from "./layouts/layout11-christmas";
 import { createHash } from "crypto";
 
 // 1. Load Fonts - Zalando Sans with East European (Latin-Extended) support
 import { readFileSync } from 'fs';
 import { join } from 'path';
+import { createLayout45Christmas } from "./layouts/layout45-christmas";
+import { createLayout916Christmas } from "./layouts/layout916-christmas";
 
 // Load static TTF files (Satori doesn't fully support variable fonts)
 // These files support Latin-Extended characters for East European languages
@@ -143,6 +146,7 @@ async function urlToDataUri(url: string): Promise<string> {
 
 // Helper: Create cache key for final PNG
 function createPngCacheKey(params: {
+  style: string;
   aspectRatio: string;
   productName: string;
   finalPrice: string | null;
@@ -316,17 +320,25 @@ serve({
         <div class="form-row">
           <div class="form-group">
             <label for="price">Price</label>
-            <input type="text" id="price" name="price" value="2.990 RSD" placeholder="e.g., 2.990 RSD">
+            <input type="text" id="price" name="price" value="59.95KM" placeholder="e.g., 59.95KM">
           </div>
           <div class="form-group">
             <label for="discountPrice">Discount Price (optional)</label>
-            <input type="text" id="discountPrice" name="discount_price" placeholder="e.g., 1.495 RSD">
+            <input type="text" id="discountPrice" value="39.95KM" name="discount_price" placeholder="e.g., 39.95KM">
           </div>
         </div>
         
         <div class="form-group">
           <label for="imageUrl">Image URL</label>
           <input type="text" id="imageUrl" name="img" placeholder="Leave empty for default image">
+        </div>
+        
+        <div class="form-group">
+          <label for="style">Style</label>
+          <select id="style" name="style">
+            <option value="standard">Standard</option>
+            <option value="christmas">Christmas</option>
+          </select>
         </div>
         
         <div class="form-group">
@@ -400,11 +412,13 @@ serve({
       const formData = new FormData(form);
       const imgValue = formData.get('img');
       const debugMode = formData.get('debug') === 'on';
+      const style = formData.get('style') || 'standard';
       const params = {
         name: formData.get('name') || undefined,
         price: formData.get('price') || undefined,
         discount_price: formData.get('discount_price') || undefined,
         img: imgValue ? btoa(imgValue) : undefined,
+        style: style || undefined,
         debug: debugMode ? 'true' : undefined,
       };
       
@@ -433,6 +447,11 @@ serve({
     const brandName = "Lunatik"; 
     const productName = url.searchParams.get("name") || "Haljina Judson";
     console.log("Product Name:", productName);
+    
+    // Style Logic - determines which layout variant to use
+    const styleParam = url.searchParams.get("style") || "standard";
+    const style = styleParam === "christmas" ? "christmas" : "standard";
+    console.log(`Style: ${style}`);
     
     // Aspect Ratio Logic
     const aspectRatioParam = url.searchParams.get("aspect_ratio");
@@ -489,6 +508,7 @@ serve({
 
     // Check PNG cache first
     const pngCacheKey = createPngCacheKey({
+      style,
       aspectRatio,
       productName,
       finalPrice,
@@ -516,14 +536,20 @@ serve({
         : await urlToDataUri("https://images.unsplash.com/photo-1595777457583-95e059d581b8?w=800&q=80"); 
 
     // --- 3. THE LAYOUT ---
-    // Choose layout based on aspect ratio
+    // Choose layout based on aspect ratio and style
     let template;
     if (aspectRatio === "1:1") {
-      template = createLayout11(productImgBase64, brandName, productName, finalPrice, oldPrice, isDiscounted, discountPercentage, debugMode);
+      template = style === "christmas"
+        ? createLayout11Christmas(productImgBase64, brandName, productName, finalPrice, oldPrice, isDiscounted, discountPercentage, debugMode)
+        : createLayout11(productImgBase64, brandName, productName, finalPrice, oldPrice, isDiscounted, discountPercentage, debugMode);
     } else if (aspectRatio === "9:16") {
-      template = createLayout916(productImgBase64, brandName, productName, finalPrice, oldPrice, isDiscounted, discountPercentage, debugMode);
+      template = style === "christmas"
+        ? createLayout916Christmas(productImgBase64, brandName, productName, finalPrice, oldPrice, isDiscounted, discountPercentage, debugMode)
+        : createLayout916(productImgBase64, brandName, productName, finalPrice, oldPrice, isDiscounted, discountPercentage, debugMode);
     } else {
-      template = createLayout45(productImgBase64, brandName, productName, finalPrice, oldPrice, isDiscounted, discountPercentage, debugMode);
+      template = style === "christmas"
+        ? createLayout45Christmas(productImgBase64, brandName, productName, finalPrice, oldPrice, isDiscounted, discountPercentage, debugMode)
+        : createLayout45(productImgBase64, brandName, productName, finalPrice, oldPrice, isDiscounted, discountPercentage, debugMode);
     }
 
     // --- 4. RENDER ---
