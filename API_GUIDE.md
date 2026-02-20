@@ -35,7 +35,7 @@ None - all parameters are optional with sensible defaults.
 | `discount_price` | string                      | null             | Discounted price (e.g., "1.495 RSD"). When provided, enables discount display |
 | `img`            | string (base64 encoded URL) | Default image    | Product image URL. Must be base64 encoded if using a URL                      |
 | `aspect_ratio`   | string                      | "4:5"            | Image aspect ratio. Supported values: `"1:1"`, `"4:5"`, `"9:16"`              |
-| `style`          | string                      | "standard"       | Layout style. Supported values: `"standard"`, `"christmas"`                   |
+| `style`          | string                      | "standard"       | Layout style. Supported values: `"standard"`, `"christmas"`, `"mothersday"`   |
 | `debug`          | boolean                     | false            | Enable debug mode to show layout borders. Set to `"true"`                     |
 
 ## Response
@@ -80,6 +80,9 @@ curl "http://localhost:3004/?img=$ENCODED_URL&name=Product%20Name&price=100%20EU
 ```bash
 # Christmas style
 curl "http://localhost:3004/?style=christmas&name=Product&price=50%20USD" -o product-christmas.png
+
+# Mother's Day style
+curl "http://localhost:3004/?style=mothersday&name=Product&price=50%20USD" -o product-mothersday.png
 
 # Standard style (default)
 curl "http://localhost:3004/?style=standard&name=Product&price=50%20USD" -o product-standard.png
@@ -142,7 +145,7 @@ const imageBlob = await generateProductImage({
   price: "2.990 RSD",
   discountPrice: "1.495 RSD",
   aspectRatio: "4:5",
-  style: "christmas", // or "standard"
+  style: "christmas", // or "standard" or "mothersday"
   imageUrl: "https://example.com/product.jpg",
 });
 
@@ -167,7 +170,7 @@ def generate_product_image(name=None, price=None, discount_price=None,
         discount_price: Discounted price string
         image_url: URL to product image
         aspect_ratio: '1:1', '4:5', or '9:16'
-        style: 'standard' or 'christmas'
+        style: 'standard', 'christmas', or 'mothersday'
         debug: Enable debug mode
 
     Returns:
@@ -253,7 +256,7 @@ generateProductImage({
   price: "2.990 RSD",
   discountPrice: "1.495 RSD",
   aspectRatio: "4:5",
-  style: "christmas", // or "standard"
+  style: "christmas", // or "standard" or "mothersday"
 }).then((imageBuffer) => {
   fs.writeFileSync("product.png", imageBuffer);
 });
@@ -276,6 +279,13 @@ The API supports different layout styles that change the visual appearance of th
 - Christmas decorations and ornaments
 - Seasonal color schemes
 - Perfect for holiday campaigns
+
+### Mother's Day Style
+
+- Themed overlay with floral decorations
+- Baby rose discount badge with black text
+- Brand name hidden from layout
+- Ideal for Mother's Day promotions
 
 ## Layout Details
 
@@ -445,7 +455,7 @@ http://localhost:3004/demo
 Features:
 
 - Visual form to test all parameters
-- Real-time preview of both aspect ratios
+- Real-time preview of all three aspect ratios
 - Debug mode toggle
 - No coding required
 
@@ -471,7 +481,7 @@ For issues or questions:
 ### Current Version
 
 - Support for 1:1, 4:5, and 9:16 aspect ratios
-- Multiple style options (standard, christmas)
+- Multiple style options (standard, christmas, mothersday)
 - Automatic discount percentage calculation
 - Debug mode for layout troubleshooting
 - Automatic image format conversion to JPEG

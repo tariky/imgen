@@ -2,17 +2,13 @@ import { serve } from "bun";
 import satori from "satori";
 import { Resvg } from "@resvg/resvg-js";
 import sharp from "sharp";
-import { createLayout45 } from "./layouts/layout45";
-import { createLayout916 } from "./layouts/layout916";
-import { createLayout11 } from "./layouts/layout11";
-import { createLayout11Christmas } from "./layouts/layout11-christmas";
+import { createLayout } from "./layouts/layout";
+import { getStyle, getOverlayImage, validStyleIds, allStyles } from "./styles/registry";
 import { createHash } from "crypto";
 
 // 1. Load Fonts - Zalando Sans with East European (Latin-Extended) support
 import { readFileSync } from 'fs';
 import { join } from 'path';
-import { createLayout45Christmas } from "./layouts/layout45-christmas";
-import { createLayout916Christmas } from "./layouts/layout916-christmas";
 
 // Load static TTF files (Satori doesn't fully support variable fonts)
 // These files support Latin-Extended characters for East European languages
@@ -336,8 +332,7 @@ serve({
         <div class="form-group">
           <label for="style">Style</label>
           <select id="style" name="style">
-            <option value="standard">Standard</option>
-            <option value="christmas">Christmas</option>
+            ${allStyles.map(s => `<option value="${s.id}">${s.label}</option>`).join("\n            ")}
           </select>
         </div>
         
@@ -450,7 +445,7 @@ serve({
     
     // Style Logic - determines which layout variant to use
     const styleParam = url.searchParams.get("style") || "standard";
-    const style = styleParam === "christmas" ? "christmas" : "standard";
+    const style = validStyleIds.includes(styleParam) ? styleParam : "standard";
     console.log(`Style: ${style}`);
     
     // Aspect Ratio Logic
@@ -536,21 +531,13 @@ serve({
         : await urlToDataUri("https://images.unsplash.com/photo-1595777457583-95e059d581b8?w=800&q=80"); 
 
     // --- 3. THE LAYOUT ---
-    // Choose layout based on aspect ratio and style
-    let template;
-    if (aspectRatio === "1:1") {
-      template = style === "christmas"
-        ? createLayout11Christmas(productImgBase64, brandName, productName, finalPrice, oldPrice, isDiscounted, discountPercentage, debugMode)
-        : createLayout11(productImgBase64, brandName, productName, finalPrice, oldPrice, isDiscounted, discountPercentage, debugMode);
-    } else if (aspectRatio === "9:16") {
-      template = style === "christmas"
-        ? createLayout916Christmas(productImgBase64, brandName, productName, finalPrice, oldPrice, isDiscounted, discountPercentage, debugMode)
-        : createLayout916(productImgBase64, brandName, productName, finalPrice, oldPrice, isDiscounted, discountPercentage, debugMode);
-    } else {
-      template = style === "christmas"
-        ? createLayout45Christmas(productImgBase64, brandName, productName, finalPrice, oldPrice, isDiscounted, discountPercentage, debugMode)
-        : createLayout45(productImgBase64, brandName, productName, finalPrice, oldPrice, isDiscounted, discountPercentage, debugMode);
-    }
+    const styleConfig = getStyle(style);
+    const overlayImage = getOverlayImage(style, aspectRatio, !!(isDiscounted && discountPercentage));
+    const template = createLayout(
+      productImgBase64, brandName, productName, finalPrice, oldPrice,
+      isDiscounted, discountPercentage, debugMode, aspectRatio,
+      styleConfig.colors, overlayImage, styleConfig.hideBrandName
+    );
 
     // --- 4. RENDER ---
     // Use Promise.all for parallel operations where possible

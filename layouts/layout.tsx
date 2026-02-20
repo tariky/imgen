@@ -1,10 +1,6 @@
-import { getLocalImage } from "./layout11-christmas";
+import type { StyleColors } from "../styles/registry";
 
-const regularChristmasImage = await getLocalImage("./assets/4by5-regular.png");
-const saleChristmasImage = await getLocalImage("./assets/4by5-sale.png");
-
-// Layout for 4:5 aspect ratio (horizontal layout)
-export function createLayout45Christmas(
+export function createLayout(
   productImgBase64: string,
   brandName: string,
   productName: string,
@@ -12,9 +8,15 @@ export function createLayout45Christmas(
   oldPrice: string | null,
   isDiscounted: boolean,
   discountPercentage: number | null,
-  debugMode: boolean = false
+  debugMode: boolean,
+  aspectRatio: string,
+  colors: StyleColors,
+  overlayImage: string | null,
+  hideBrandName: boolean
 ) {
   const debugBorder = debugMode ? "2px solid red" : "none";
+  const padding = aspectRatio === "9:16" ? "480px" : "240px";
+  const brandNameColor = aspectRatio === "9:16" ? colors.brandName916 : colors.brandName;
 
   return (
     <div
@@ -69,8 +71,8 @@ export function createLayout45Christmas(
           flexDirection: "column",
           flex: "0 0 40%",
           height: "100%",
-          paddingTop: "240px",
-          paddingBottom: "240px",
+          paddingTop: padding,
+          paddingBottom: padding,
           justifyContent: "space-between",
           alignItems: "center",
           border: debugMode ? "2px solid green" : "none",
@@ -93,8 +95,8 @@ export function createLayout45Christmas(
                 flexDirection: "column",
                 alignItems: "center",
                 justifyContent: "center",
-                backgroundColor: "red",
-                color: "white",
+                backgroundColor: colors.badgeBackground,
+                color: colors.badgeText,
                 fontSize: "26px",
                 fontWeight: 700,
                 height: "200px",
@@ -114,30 +116,42 @@ export function createLayout45Christmas(
                 flexDirection: "column",
                 alignItems: "center",
                 justifyContent: "center",
-                color: "white",
+                color: colors.iconColor,
               }}
             >
-              <svg xmlns="http://www.w3.org/2000/svg" width="48" height="48" viewBox="0 0 24 24" fill="currentColor" className="icon icon-tabler icons-tabler-filled icon-tabler-rosette-discount-check"><path stroke="none" d="M0 0h24v24H0z" fill="none"/><path d="M12.01 2.011a3.2 3.2 0 0 1 2.113 .797l.154 .145l.698 .698a1.2 1.2 0 0 0 .71 .341l.135 .008h1a3.2 3.2 0 0 1 3.195 3.018l.005 .182v1c0 .27 .092 .533 .258 .743l.09 .1l.697 .698a3.2 3.2 0 0 1 .147 4.382l-.145 .154l-.698 .698a1.2 1.2 0 0 0 -.341 .71l-.008 .135v1a3.2 3.2 0 0 1 -3.018 3.195l-.182 .005h-1a1.2 1.2 0 0 0 -.743 .258l-.1 .09l-.698 .697a3.2 3.2 0 0 1 -4.382 .147l-.154 -.145l-.698 -.698a1.2 1.2 0 0 0 -.71 -.341l-.135 -.008h-1a3.2 3.2 0 0 1 -3.195 -3.018l-.005 -.182v-1a1.2 1.2 0 0 0 -.258 -.743l-.09 -.1l-.697 -.698a3.2 3.2 0 0 1 -.147 -4.382l.145 -.154l.698 -.698a1.2 1.2 0 0 0 .341 -.71l.008 -.135v-1l.005 -.182a3.2 3.2 0 0 1 3.013 -3.013l.182 -.005h1a1.2 1.2 0 0 0 .743 -.258l.1 -.09l.698 -.697a3.2 3.2 0 0 1 2.269 -.944zm3.697 7.282a1 1 0 0 0 -1.414 0l-3.293 3.292l-1.293 -1.292l-.094 -.083a1 1 0 0 0 -1.32 1.497l2 2l.094 .083a1 1 0 0 0 1.32 -.083l4 -4l.083 -.094a1 1 0 0 0 -.083 -1.32z" /></svg>
-              <span style={{ fontSize: "28px" }}>Plaćanje pouzećem</span>
+              <svg
+                xmlns="http://www.w3.org/2000/svg"
+                width="48"
+                height="48"
+                viewBox="0 0 24 24"
+                fill="currentColor"
+                className="icon icon-tabler icons-tabler-filled icon-tabler-rosette-discount-check"
+              >
+                <path stroke="none" d="M0 0h24v24H0z" fill="none" />
+                <path d="M12.01 2.011a3.2 3.2 0 0 1 2.113 .797l.154 .145l.698 .698a1.2 1.2 0 0 0 .71 .341l.135 .008h1a3.2 3.2 0 0 1 3.195 3.018l.005 .182v1c0 .27 .092 .533 .258 .743l.09 .1l.697 .698a3.2 3.2 0 0 1 .147 4.382l-.145 .154l-.698 .698a1.2 1.2 0 0 0 -.341 .71l-.008 .135v1a3.2 3.2 0 0 1 -3.018 3.195l-.182 .005h-1a1.2 1.2 0 0 0 -.743 .258l-.1 .09l-.698 .697a3.2 3.2 0 0 1 -4.382 .147l-.154 -.145l-.698 -.698a1.2 1.2 0 0 0 -.71 -.341l-.135 -.008h-1a3.2 3.2 0 0 1 -3.195 -3.018l-.005 -.182v-1a1.2 1.2 0 0 0 -.258 -.743l-.09 -.1l-.697 -.698a3.2 3.2 0 0 1 -.147 -4.382l.145 -.154l.698 -.698a1.2 1.2 0 0 0 .341 -.71l.008 -.135v-1l.005 -.182a3.2 3.2 0 0 1 3.013 -3.013l.182 -.005h1a1.2 1.2 0 0 0 .743 -.258l.1 -.09l.698 -.697a3.2 3.2 0 0 1 2.269 -.944zm3.697 7.282a1 1 0 0 0 -1.414 0l-3.293 3.292l-1.293 -1.292l-.094 -.083a1 1 0 0 0 -1.32 1.497l2 2l.094 .083a1 1 0 0 0 1.32 -.083l4 -4l.083 -.094a1 1 0 0 0 -.083 -1.32z" />
+              </svg>
+              <span style={{ fontSize: "28px", color: colors.labelText }}>Plaćanje pouzećem</span>
             </div>
           )}
         </div>
 
         {/* MIDDLE: Brand Name */}
-        <div
-          style={{
-            display: "flex",
-            fontSize: "72px",
-            fontWeight: 700,
-            color: "black",
-            letterSpacing: "-2px",
-            textAlign: "center",
-            justifyContent: "center",
-            border: debugMode ? "1px solid orange" : "none",
-          }}
-        >
-          {brandName}
-        </div>
+        {!hideBrandName && (
+          <div
+            style={{
+              display: "flex",
+              fontSize: "72px",
+              fontWeight: 700,
+              color: brandNameColor,
+              letterSpacing: "-2px",
+              textAlign: "center",
+              justifyContent: "center",
+              border: debugMode ? "1px solid orange" : "none",
+            }}
+          >
+            {brandName}
+          </div>
+        )}
 
         {/* BOTTOM: Pricing Block */}
         <div
@@ -155,7 +169,7 @@ export function createLayout45Christmas(
               style={{
                 display: "flex",
                 fontSize: "36px",
-                color: "#666",
+                color: colors.oldPrice,
                 textDecoration: "line-through",
                 marginBottom: "10px",
                 justifyContent: "center",
@@ -170,12 +184,12 @@ export function createLayout45Christmas(
             style={{
               display: "flex",
               fontSize: "26px",
-              color: "#333",
+              color: colors.productName,
               marginBottom: "10px",
               justifyContent: "center",
               textAlign: "center",
               paddingLeft: "20px",
-              paddingRight: "20px"
+              paddingRight: "20px",
             }}
           >
             {productName}
@@ -187,7 +201,7 @@ export function createLayout45Christmas(
               display: "flex",
               fontSize: "56px",
               fontWeight: 700,
-              color: "black",
+              color: colors.price,
               justifyContent: "center",
             }}
           >
@@ -195,15 +209,19 @@ export function createLayout45Christmas(
           </div>
         </div>
       </div>
-      <img
-        src={isDiscounted && discountPercentage ? saleChristmasImage : regularChristmasImage}
-        style={{
-          position: "absolute",
-          bottom: 0,
-          right: 0,
-          width: "100%",
-        }}
-      />
+
+      {/* Overlay image (for themed styles) */}
+      {overlayImage && (
+        <img
+          src={overlayImage}
+          style={{
+            position: "absolute",
+            bottom: 0,
+            right: 0,
+            width: "100%",
+          }}
+        />
+      )}
     </div>
   );
 }
