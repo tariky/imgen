@@ -112,7 +112,7 @@ const STYLES: Record<string, StyleConfig> = {
 };
 
 export function getStyle(id: string): StyleConfig {
-  return STYLES[id] || STYLES.standard;
+  return STYLES[id] ?? STYLES.standard!;
 }
 
 export function getOverlayImage(

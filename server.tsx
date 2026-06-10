@@ -1,36 +1,46 @@
 import { serve } from "bun";
-import satori from "satori";
-import { Resvg } from "@resvg/resvg-js";
 import sharp from "sharp";
-import { createLayout } from "./layouts/layout";
-import { getStyle, getOverlayImage, validStyleIds, allStyles } from "./styles/registry";
+import { validStyleIds, allStyles } from "./styles/registry";
 import { createHash } from "crypto";
+import { availableParallelism } from "os";
+import { RenderWorkerPool, type RenderWorkerLike } from "./utils/render-worker-pool";
+import { runSingleFlight } from "./utils/singleflight";
+import type { RenderPayload } from "./utils/render-types";
 
-// 1. Load Fonts - Zalando Sans with East European (Latin-Extended) support
-import { readFileSync } from 'fs';
-import { join } from 'path';
+function readPositiveIntegerEnv(name: string): number | null {
+  const rawValue = process.env[name];
+  if (!rawValue) return null;
 
-// Load static TTF files (Satori doesn't fully support variable fonts)
-// These files support Latin-Extended characters for East European languages
-const zalandoSansRegular = readFileSync(
-  join(process.cwd(), 'zalando-sans-regular.ttf')
-);
-const zalandoSansBold = readFileSync(
-  join(process.cwd(), 'zalando-sans-bold.ttf')
-);
+  const value = Number.parseInt(rawValue, 10);
+  return Number.isInteger(value) && value > 0 ? value : null;
+}
+
+const renderWorkerCount =
+  readPositiveIntegerEnv("IMAGE_RENDER_WORKERS") ??
+  Math.max(1, Math.min(availableParallelism(), 8));
+const logRequests = process.env.LOG_REQUESTS === "true";
+const renderPool = new RenderWorkerPool<RenderPayload>({
+  size: renderWorkerCount,
+  createWorker: () =>
+    new Worker(new URL("./render-worker.tsx", import.meta.url), {
+      type: "module",
+    }) as unknown as RenderWorkerLike,
+});
 
 // Configure Sharp for optimal performance
 // Enable multi-threading and set concurrency
-sharp.concurrency(0); // 0 = use all available CPU cores
+sharp.concurrency(Math.max(1, Math.floor(renderWorkerCount / 2)));
 sharp.simd(true); // Enable SIMD optimizations
 
 // Image cache - stores processed images in memory
 const imageCache = new Map<string, { data: string; timestamp: number }>();
+const imageInFlight = new Map<string, Promise<string>>();
 const CACHE_TTL = 1000 * 60 * 60; // 1 hour cache TTL
 const MAX_CACHE_SIZE = 100; // Maximum cached images
 
 // PNG cache - stores final rendered images
 const pngCache = new Map<string, { data: Buffer; timestamp: number }>();
+const pngInFlight = new Map<string, Promise<Buffer>>();
 const PNG_CACHE_TTL = 1000 * 60 * 30; // 30 minutes cache TTL
 const MAX_PNG_CACHE_SIZE = 50; // Maximum cached PNGs
 
@@ -96,6 +106,12 @@ function createImageCacheKey(url: string): string {
   return createHash('md5').update(url).digest('hex');
 }
 
+function toPngBlob(buffer: Buffer): Blob {
+  const arrayBuffer = new ArrayBuffer(buffer.byteLength);
+  new Uint8Array(arrayBuffer).set(buffer);
+  return new Blob([arrayBuffer], { type: "image/png" });
+}
+
 // Helper: Convert Image URL to Base64 (with caching)
 async function urlToDataUri(url: string): Promise<string> {
   const cacheKey = createImageCacheKey(url);
@@ -105,39 +121,47 @@ async function urlToDataUri(url: string): Promise<string> {
   if (cached && Date.now() - cached.timestamp < CACHE_TTL) {
     return cached.data;
   }
-  
-  try {
-    const response = await fetch(url);
-    if (!response.ok) throw new Error("Image fetch failed");
-    const arrayBuffer = await response.arrayBuffer();
-    const buffer = Buffer.from(arrayBuffer);
-    
-    // Convert to JPG using sharp with optimized settings
-    // Use faster quality and progressive encoding for better performance
-    const jpegBuffer = await sharp(buffer, {
-      failOn: 'none', // Don't fail on corrupt images
-      limitInputPixels: 268402689, // Max pixels (16383^2)
-    })
-      .jpeg({
-        quality: 85, // Good balance between quality and file size
-        progressive: true, // Progressive JPEG for faster perceived loading
-        mozjpeg: true, // Use mozjpeg for better compression
-      })
-      .toBuffer();
 
-    const dataUri = `data:image/jpeg;base64,${jpegBuffer.toString("base64")}`;
-    
-    // Cache the result
-    imageCache.set(cacheKey, {
-      data: dataUri,
-      timestamp: Date.now(),
-    });
-    
-    return dataUri;
-  } catch (e) {
-    console.error(`Failed to load image: ${url}`, e);
-    return "data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7";
-  }
+  return runSingleFlight(imageInFlight, cacheKey, async () => {
+    const cachedInsideFlight = imageCache.get(cacheKey);
+    if (cachedInsideFlight && Date.now() - cachedInsideFlight.timestamp < CACHE_TTL) {
+      return cachedInsideFlight.data;
+    }
+
+    try {
+      const response = await fetch(url);
+      if (!response.ok) throw new Error("Image fetch failed");
+      const arrayBuffer = await response.arrayBuffer();
+      const buffer = Buffer.from(arrayBuffer);
+      
+      // Convert to JPG using sharp with optimized settings
+      // Use faster quality and progressive encoding for better performance
+      const jpegBuffer = await sharp(buffer, {
+        failOn: 'none', // Don't fail on corrupt images
+        limitInputPixels: 268402689, // Max pixels (16383^2)
+      })
+        .jpeg({
+          quality: 85, // Good balance between quality and file size
+          progressive: true, // Progressive JPEG for faster perceived loading
+          mozjpeg: true, // Use mozjpeg for better compression
+        })
+        .toBuffer();
+
+      const dataUri = `data:image/jpeg;base64,${jpegBuffer.toString("base64")}`;
+      
+      // Cache the result
+      imageCache.set(cacheKey, {
+        data: dataUri,
+        timestamp: Date.now(),
+      });
+      cleanupCache();
+      
+      return dataUri;
+    } catch (e) {
+      console.error(`Failed to load image: ${url}`, e);
+      return "data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7";
+    }
+  });
 }
 
 // Helper: Create cache key for final PNG
@@ -168,11 +192,14 @@ serve({
         imageCache: {
           size: imageCache.size,
           maxSize: MAX_CACHE_SIZE,
+          inFlight: imageInFlight.size,
         },
         pngCache: {
           size: pngCache.size,
           maxSize: MAX_PNG_CACHE_SIZE,
+          inFlight: pngInFlight.size,
         },
+        renderWorkers: renderPool.stats(),
       }), {
         headers: { "Content-Type": "application/json" },
       });
@@ -441,17 +468,17 @@ serve({
     // --- 2. GET VARIABLES ---
     const brandName = "Lunatik"; 
     const productName = url.searchParams.get("name") || "Haljina Judson";
-    console.log("Product Name:", productName);
+    if (logRequests) console.log("Product Name:", productName);
     
     // Style Logic - determines which layout variant to use
     const styleParam = url.searchParams.get("style") || "standard";
     const style = validStyleIds.includes(styleParam) ? styleParam : "standard";
-    console.log(`Style: ${style}`);
+    if (logRequests) console.log(`Style: ${style}`);
     
     // Aspect Ratio Logic
     const aspectRatioParam = url.searchParams.get("aspect_ratio");
     const { width: imageWidth, height: imageHeight, ratio: aspectRatio } = parseAspectRatio(aspectRatioParam);
-    console.log(`Image dimensions: ${imageWidth}x${imageHeight} (aspect ratio: ${aspectRatio})`);
+    if (logRequests) console.log(`Image dimensions: ${imageWidth}x${imageHeight} (aspect ratio: ${aspectRatio})`);
     
     // Image Logic: Decode base64 image URL if present
     const rawImgParam = url.searchParams.get("img");
@@ -516,65 +543,73 @@ serve({
     
     const cachedPng = pngCache.get(pngCacheKey);
     if (cachedPng && Date.now() - cachedPng.timestamp < PNG_CACHE_TTL) {
-      return new Response(cachedPng.data, {
+      return new Response(toPngBlob(cachedPng.data), {
         headers: { 
           "Content-Type": "image/png",
           "Cache-Control": "public, max-age=1800", // 30 minutes
           "X-Cache": "HIT",
+          "X-Render-Workers": String(renderWorkerCount),
         },
       });
     }
 
-    // Process image and layout in parallel where possible
-    const productImgBase64 = imageUrl 
-        ? await urlToDataUri(imageUrl) 
-        : await urlToDataUri("https://images.unsplash.com/photo-1595777457583-95e059d581b8?w=800&q=80"); 
+    const wasInFlight = pngInFlight.has(pngCacheKey);
+    let pngBuffer: Buffer;
 
-    // --- 3. THE LAYOUT ---
-    const styleConfig = getStyle(style);
-    const overlayImage = getOverlayImage(style, aspectRatio, !!(isDiscounted && discountPercentage));
-    const template = createLayout(
-      productImgBase64, brandName, productName, finalPrice, oldPrice,
-      isDiscounted, discountPercentage, debugMode, aspectRatio,
-      styleConfig.colors, overlayImage, styleConfig.hideBrandName
-    );
+    try {
+      pngBuffer = await runSingleFlight(pngInFlight, pngCacheKey, async () => {
+        const cachedInsideFlight = pngCache.get(pngCacheKey);
+        if (cachedInsideFlight && Date.now() - cachedInsideFlight.timestamp < PNG_CACHE_TTL) {
+          return cachedInsideFlight.data;
+        }
 
-    // --- 4. RENDER ---
-    // Use Promise.all for parallel operations where possible
-    const svg = await satori(template, {
-      width: imageWidth,
-      height: imageHeight,
-      fonts: [
-        { name: 'Zalando Sans', data: zalandoSansRegular, weight: 400, style: 'normal' },
-        { name: 'Zalando Sans', data: zalandoSansBold, weight: 700, style: 'normal' },
-      ],
-    });
+        const productImgBase64 = imageUrl 
+            ? await urlToDataUri(imageUrl) 
+            : await urlToDataUri("https://images.unsplash.com/photo-1595777457583-95e059d581b8?w=800&q=80"); 
 
-    // Optimize Resvg rendering
-    const resvg = new Resvg(svg, { 
-      fitTo: { mode: 'width', value: imageWidth },
-      // Enable optimizations
-      font: {
-        loadSystemFonts: false, // Don't load system fonts, we have our own
-      },
-    });
-    
-    const pngBuffer = resvg.render().asPng();
+        const renderPayload: RenderPayload = {
+          productImgBase64,
+          brandName,
+          productName,
+          finalPrice,
+          oldPrice,
+          isDiscounted,
+          discountPercentage,
+          debugMode,
+          aspectRatio,
+          style,
+          imageWidth,
+          imageHeight,
+        };
 
-    // Cache the PNG
-    pngCache.set(pngCacheKey, {
-      data: pngBuffer,
-      timestamp: Date.now(),
-    });
+        const renderedPng = await renderPool.run(renderPayload);
 
-    return new Response(pngBuffer, {
+        // Cache the PNG
+        pngCache.set(pngCacheKey, {
+          data: renderedPng,
+          timestamp: Date.now(),
+        });
+        cleanupCache();
+
+        return renderedPng;
+      });
+    } catch (error) {
+      console.error("Failed to render image:", error);
+      return new Response("Failed to render image", {
+        status: 500,
+        headers: { "Content-Type": "text/plain" },
+      });
+    }
+
+    return new Response(toPngBlob(pngBuffer), {
       headers: { 
         "Content-Type": "image/png",
         "Cache-Control": "public, max-age=1800", // 30 minutes
-        "X-Cache": "MISS",
+        "X-Cache": wasInFlight ? "INFLIGHT" : "MISS",
+        "X-Render-Workers": String(renderWorkerCount),
       },
     });
   },
 });
 
-console.log(`Generator running at http://localhost:${process.env.PORT || 3004}`);
+console.log(`Generator running at http://localhost:${process.env.PORT || 3004} with ${renderWorkerCount} render workers`);
